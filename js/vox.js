@@ -225,6 +225,7 @@ function VoiceParser() {
 
         if (this.speechNode == null) {
             this.speechNode = {production: production, children: []};
+            this.speech = this.speechNode;
         }
         else {
             var newSpeechNode = {production: production, children: [], parent: this.speechNode};
