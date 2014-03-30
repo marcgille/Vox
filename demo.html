@@ -1,0 +1,326 @@
+<!DOCTYPE html ng-app>
+<html>
+<head>
+<script>
+    (function (e, p) {
+        var m = location.href.match(/platform=(win8|win|mac|linux|cros)/);
+        e.id = (m && m[1]) ||
+                (p.indexOf('Windows NT 6.2') > -1 ? 'win8' : p.indexOf('Windows') > -1 ? 'win' : p.indexOf('Mac') > -1 ? 'mac' : p.indexOf('CrOS') > -1 ? 'cros' : 'linux');
+        e.className = e.className.replace(/\bno-js\b/, 'js');
+    })(document.documentElement, window.navigator.userAgent)
+</script>
+<meta charset="utf-8">
+<title>
+    Vox Demo
+</title>
+<script src="http://requirejs.org/docs/release/2.1.11/minified/require.js"></script>
+<style>
+    body {
+        font-family: "Arial";
+    }
+
+    h1 {
+        width: 100%;
+        font-weight: normal;
+        border-bottom: 1px solid darkblue;
+    }
+
+    h2 {
+        font-weight: normal;
+    }
+
+    h3 {
+        font-weight: normal;
+    }
+</style>
+<script>
+require
+        .config({
+            baseUrl: "./",
+            paths: {
+                jquery: ['//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min' ],
+                angularjs: ['//ajax.googleapis.com/ajax/libs/angularjs/1.2.0/angular.min' ],
+                vox: "js/vox"
+            },
+            shim: {
+                angularjs: {
+                    require: "jquery",
+                    exports: "angular"
+                }
+            }
+        });
+
+require(
+        [ "require", "jquery", "angularjs", "vox"],
+        function (require, jquery, angularjs, vox) {
+            jQuery(document)
+                    .ready(
+                    function () {
+                        var module = angularjs.module(
+                                "voxDemoApplication",
+                                []);
+
+                        module
+                                .controller(
+                                'voxDemo',
+                                function ($scope) {
+                                    console.log($scope);
+
+                                    inheritMethods(
+                                            $scope,
+                                            new VoxDemo());
+
+                                    $scope.initialize();
+                                });
+
+                        angular
+                                .bootstrap(
+                                document,
+                                [ "voxDemoApplication" ]);
+                    });
+        });
+
+
+function VoxDemo() {
+    VoxDemo.prototype.safeApply = function (fn) {
+        var phase = this.$root.$$phase;
+
+        if (phase == '$apply' || phase == '$digest') {
+            if (fn && (typeof(fn) === 'function')) {
+                fn();
+            }
+        } else {
+            this.$apply(fn);
+        }
+    };
+
+    VoxDemo.prototype.initialize = function () {
+        this.objects = [];
+        this.links = [];
+        this.context = null;
+        this.message = null;
+        this.languages =
+                [
+                    ['Afrikaans', ['af-ZA']],
+                    ['Bahasa Indonesia', ['id-ID']],
+                    ['Bahasa Melayu', ['ms-MY']],
+                    ['Català', ['ca-ES']],
+                    ['Čeština', ['cs-CZ']],
+                    ['Deutsch', ['de-DE']],
+                    ['English', ['en-AU', 'Australia'],
+                        ['en-CA', 'Canada'],
+                        ['en-IN', 'India'],
+                        ['en-NZ', 'New Zealand'],
+                        ['en-ZA', 'South Africa'],
+                        ['en-GB', 'United Kingdom'],
+                        ['en-US', 'United States']],
+                    ['Español', ['es-AR', 'Argentina'],
+                        ['es-BO', 'Bolivia'],
+                        ['es-CL', 'Chile'],
+                        ['es-CO', 'Colombia'],
+                        ['es-CR', 'Costa Rica'],
+                        ['es-EC', 'Ecuador'],
+                        ['es-SV', 'El Salvador'],
+                        ['es-ES', 'España'],
+                        ['es-US', 'Estados Unidos'],
+                        ['es-GT', 'Guatemala'],
+                        ['es-HN', 'Honduras'],
+                        ['es-MX', 'México'],
+                        ['es-NI', 'Nicaragua'],
+                        ['es-PA', 'Panamá'],
+                        ['es-PY', 'Paraguay'],
+                        ['es-PE', 'Perú'],
+                        ['es-PR', 'Puerto Rico'],
+                        ['es-DO', 'República Dominicana'],
+                        ['es-UY', 'Uruguay'],
+                        ['es-VE', 'Venezuela']],
+                    ['Euskara', ['eu-ES']],
+                    ['Français', ['fr-FR']],
+                    ['Galego', ['gl-ES']],
+                    ['Hrvatski', ['hr_HR']],
+                    ['IsiZulu', ['zu-ZA']],
+                    ['Íslenska', ['is-IS']],
+                    ['Italiano', ['it-IT', 'Italia'],
+                        ['it-CH', 'Svizzera']],
+                    ['Magyar', ['hu-HU']],
+                    ['Nederlands', ['nl-NL']],
+                    ['Norsk bokmål', ['nb-NO']],
+                    ['Polski', ['pl-PL']],
+                    ['Português', ['pt-BR', 'Brasil'],
+                        ['pt-PT', 'Portugal']],
+                    ['Română', ['ro-RO']],
+                    ['Slovenčina', ['sk-SK']],
+                    ['Suomi', ['fi-FI']],
+                    ['Svenska', ['sv-SE']],
+                    ['Türkçe', ['tr-TR']],
+                    ['български', ['bg-BG']],
+                    ['Pусский', ['ru-RU']],
+                    ['Српски', ['sr-RS']],
+                    ['한국어', ['ko-KR']],
+                    ['中文', ['cmn-Hans-CN', '普通话 (中国大陆)'],
+                        ['cmn-Hans-HK', '普通话 (香港)'],
+                        ['cmn-Hant-TW', '中文 (台灣)'],
+                        ['yue-Hant-HK', '粵語 (香港)']],
+                    ['日本語', ['ja-JP']],
+                    ['Lingua latīna', ['la']]
+                ];
+
+        var tokens = {MAIL: {label: "Mail", isKeyword: true},
+            TWITTER: {label: "Twitter", isKeyword: true},
+            FACEBOOK: {label: "Facebook", isKeyword: true},
+            DONE: {label: "Done", isKeyword: true},
+            ESCAPE: {label: "Escape", isKeyword: true},
+            TEXT: {label: "Arbitrary Text", isKeyword: false}};
+
+        var self = this;
+        var productions = {MessageSequence: [
+            [
+                ["Message", function (node) {
+                    console.log(node);
+                    self.safeApply();
+                }],
+                ["MessageSequence"]
+            ]
+        ],
+            Message: [
+                [
+                    ["MessageType"],
+                    ["MessageContent"]
+                ]
+            ],
+            MessageType: [
+                [
+                    ["MAIL", function (node) {
+                        console.log(node);
+                        self.safeApply();
+                    }]
+                ],
+                [
+                    ["TWITTER", function (node) {
+                        console.log(node);
+                        self.safeApply();
+                    }]
+                ],
+                [
+                    ["FACEBOOK", function (node) {
+                        console.log(node);
+                        self.safeApply();
+                    }]
+                ]
+            ],
+            MessageContent: [
+                [
+                    ["TEXT"]
+                ]
+            ]};
+
+        this.parser = new vox.VoiceParser();
+
+        this.parser.initialize(tokens, productions, "MessageSequence", function () {
+            self.voiceRecognitionStart();
+        }, function () {
+            self.voiceRecognitionError();
+        }, function () {
+            self.voiceRecognitionEnd();
+        });
+    };
+
+    /**
+     *
+     */
+    VoxDemo.prototype.voiceRecognitionStart = function () {
+        this.recognizing = true;
+
+        this.safeApply();
+    };
+
+    /**
+     *
+     */
+    VoxDemo.prototype.voiceRecognitionError = function (event) {
+        if (event.error == 'no-speech') {
+            this.message = "No speech";
+        }
+        else if (event.error == 'audio-capture') {
+            this.message = "Audio capture";
+        }
+        else if (event.error == 'not-allowed') {
+            if (event.timeStamp - this.startTimestamp < 100) {
+            } else {
+                this.message = "Not allowed";
+            }
+        }
+
+        this.safeApply();
+    };
+
+    /**
+     *
+     */
+    VoxDemo.prototype.voiceRecognitionEnd = function () {
+        this.recognizing = false;
+
+        this.safeApply();
+    };
+
+    /**
+     *
+     */
+    VoxDemo.prototype.startRecognition = function () {
+        this.parser.startRecognition();
+    };
+}
+
+/**
+ * Auxiliary method to copy all methods from the parentObject to the
+ * childObject.
+ */
+function inheritMethods(target, source) {
+    for (var member in source) {
+        if (source[member] instanceof Function) {
+            target[member] = source[member];
+        }
+    }
+}
+</script>
+</head>
+<body ng-controller="voxDemo">
+<h1>Vox Demo
+</h1>
+
+<div ng-show="message != null">{{message}}</div>
+<h2>Language</h2>
+<select ng-model="language" ng-options="language as language[0] for language in languages"></select>
+<select ng-model="dialect" ng-options="dialect as dialect[1] for dialect in language[1]"></select>
+
+<h2>Recording</h2>
+<input type="button" value="Start" ng-click="startRecognition()" ng-hide="recognizing"/>
+
+<div ng-show="recognizing">
+    <p>Current Productions</p>
+    <ul>
+        <li ng-repeat="production in parser.getActiveProductionsStack()">{{production}}</span>
+        </li>
+    </ul>
+</div>
+<div ng-show="recognizing">
+    <p>Say one of the following</p>
+    <ul>
+        <li ng-repeat="token in parser.getNextExpectedTokens()"><span
+                ng-show="token.isKeyword"><strong>{{token.label}}</strong></span><span ng-hide="token.isKeyword"><i>{{token.label}}</i></span>
+        </li>
+    </ul>
+</div>
+
+<h2>Result</h2>
+
+<h3>Objects</h3>
+<ul>
+    <li ng-repeat="object in objects">{{object.type}} {{object.oid}} {{object.name}}</li>
+</ul>
+<h3>Links</h3>
+<ul>
+    <li ng-repeat="link in links">{{link.first}} {{link.right}}</li>
+</ul>
+</body>
+</html>
