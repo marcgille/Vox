@@ -22,7 +22,7 @@ function VoiceParser() {
      * @param error
      * @param end
      */
-    VoiceParser.prototype.initialize = function (tokens, productions, startProduction, start, error, end) {
+    VoiceParser.prototype.initialize = function (tokens, productions, startProduction, start, consume, error, end) {
         this.objects = [];
         this.links = [];
         this.context = null;
@@ -31,6 +31,7 @@ function VoiceParser() {
         this.grammar = productions;
         this.startProduction = startProduction;
         this.start = start;
+        this.consume = consume;
         this.error = error;
         this.end = end;
 
@@ -108,16 +109,14 @@ function VoiceParser() {
                 if (event.results[i].isFinal) {
                     var finalToken = event.results[i][0].transcript.trim().toUpperCase();
 
-                    console.log("Final Transcript: [" + finalToken + "]");
-                    console.log(self.tokens[finalToken]);
-                    console.log(self.tokens);
+                    console.log("Token Candidate: [" + finalToken + "]");
 
                     if (self.tokens[finalToken])
                     {
                         var matchingTokenNode = null;
                         var textTokenNode = null;
 
-                        for (var n = 0; self.unresolvedTokenNodes.length; ++n)
+                        for (var n = 0; n < self.unresolvedTokenNodes.length; ++n)
                         {
                             if (self.unresolvedTokenNodes[n].token == "TEXT")
                             {
@@ -137,15 +136,16 @@ function VoiceParser() {
                             {
                                 // New token may have completed text input
 
-                                self.finalTranscript += event.results[i][0].transcript;
-
                                 if (self.finalTranscript.length > 0) {
                                     self.processText(self.finalTranscript);
+                                    self.getUnresolvedTokenNodes();
 
                                     self.finalTranscript = "";
                                 }
 
                                 self.processToken(finalToken);
+                                self.getUnresolvedTokenNodes();
+                                self.consume();
                             }
                             else {
                                 throw new SyntaxError("Unexpected token " + finalToken);
@@ -154,9 +154,8 @@ function VoiceParser() {
                         else if (self.finalTranscript.length == 0) // No other text parsed before
                         {
                             self.processToken(finalToken);
-
-
-                            self.nextTokenHint();
+                            self.getUnresolvedTokenNodes();
+                            self.consume();
                         }
                         else
                         {
@@ -169,7 +168,7 @@ function VoiceParser() {
 
                         var textTokenNode = null;
 
-                        for (var n = 0; self.unresolvedTokenNodes.length; ++n)
+                        for (var n = 0; n < self.unresolvedTokenNodes.length; ++n)
                         {
                             if (self.unresolvedTokenNodes[n].token == "TEXT")
                             {
@@ -183,6 +182,7 @@ function VoiceParser() {
                             // Parsing free text; just append
 
                             self.finalTranscript += event.results[i][0].transcript;
+                            self.consume();
                         }
                         else
                         {
@@ -326,38 +326,73 @@ function VoiceParser() {
      *
      */
     VoiceParser.prototype.resolveSyntaxBranch = function (syntaxNode) {
-        // TODO Rewrite
-
-        // Find the first resolved node or
+        // Find the first resolved node or root
 
         var lastSyntaxNode = null;
+        var currentProduction = null;
 
-        do
+        while (!lastSyntaxNode && syntaxNode.parent)
         {
+            console.log(syntaxNode);
+
             syntaxNode.resolved = true;
-            lastSyntaxNode = syntaxNode;
+
+            if (!lastSyntaxNode)
+            {
+                currentProduction = this.grammar[syntaxNode.parent.production];
+
+                console.log("Syntax Node");
+                console.log(syntaxNode);
+
+                if (syntaxNode.andIndex < currentProduction[syntaxNode.orIndex].length - 1)
+                {
+                    lastSyntaxNode = syntaxNode;
+                }
+            }
+
             syntaxNode = syntaxNode.parent;
         }
-        while (syntaxNode.parent && !syntaxNode.resolved);
 
-        console.log("Resolved node");
-        console.log(syntaxNode);
+        console.log("Last Syntax Node ");
+        console.log(lastSyntaxNode);
 
-        // Delete all unresolved branches
-
-        syntaxNode.children = [lastSyntaxNode];
-
-        // Find next term in syntax node
-
-        var production = this.grammar[syntaxNode.production];
-
-        if (lastSyntaxNode.andIndex < production[lastSyntaxNode.orIndex].length - 1)
+        if (lastSyntaxNode)
         {
-            this.pushProduction(syntaxNode, production[lastSyntaxNode.orIndex][lastSyntaxNode.andIndex + 1], lastSyntaxNode.andIndex + 1)
+            console.log("Production");
+            console.log(currentProduction);
+            console.log(lastSyntaxNode.andIndex);
+
+            this.deleteUnresolvedBranches(lastSyntaxNode);
+            this.pushProduction(lastSyntaxNode.parent, currentProduction[lastSyntaxNode.orIndex][lastSyntaxNode.andIndex + 1], lastSyntaxNode.orIndex, lastSyntaxNode.andIndex + 1);
+        }
+        else
+        {
+            console.log("Parsing completed.");
         }
     };
 
     /**
+     *
+     */
+    VoiceParser.prototype.deleteUnresolvedBranches = function (syntaxNode) {
+        var children = [];
+
+        if (syntaxNode.children) {
+            for (var n = 0; n < syntaxNode.children.length; ++n) {
+                if (syntaxNode.children[n].resolved) {
+                    children.push(syntaxNode.children[n]);
+
+                    // May be optimized as this is only needed for the branches not being cleaned yet
+
+                    this.deleteUnresolvedBranches(syntaxNode.children[n]);
+                }
+            }
+
+            syntaxNode.children = children;
+        }
+    };
+
+        /**
      *
      * @param transcript
      */
@@ -368,8 +403,10 @@ function VoiceParser() {
         {
             var tokenNode = this.unresolvedTokenNodes[n];
 
-            if (this.tokenNode.token == "TEXT")
+            if (tokenNode.token == "TEXT")
             {
+                tokenNode.text = text;
+
                 var parentProduction = this.grammar[tokenNode.parent.production];
                 var action = parentProduction[tokenNode.orIndex][tokenNode.andIndex][1];
 
@@ -378,6 +415,8 @@ function VoiceParser() {
                 if (action) {
                     action(this.tokenNode);
                 }
+
+                break;
             }
         }
     };
@@ -395,6 +434,8 @@ function VoiceParser() {
 
             if (tokenNode.token == token)
             {
+                console.log("Found unresolved token");
+
                 var parentProduction = this.grammar[tokenNode.parent.production];
                 var action = parentProduction[tokenNode.orIndex][tokenNode.andIndex][1];
 

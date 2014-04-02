@@ -14,6 +14,7 @@
     Vox Demo
 </title>
 <script src="http://requirejs.org/docs/release/2.1.11/minified/require.js"></script>
+<link rel="stylesheet" href="js/libs/jstree/themes/default/style.min.css"/>
 <style>
     body {
         font-family: "Arial";
@@ -52,6 +53,7 @@ require
             paths: {
                 jquery: ['//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min' ],
                 angularjs: ['//ajax.googleapis.com/ajax/libs/angularjs/1.2.0/angular.min' ],
+                jstree: ['js/libs/jstree/jstree.min' ],
                 vox: "js/vox"
             },
             shim: {
@@ -63,8 +65,8 @@ require
         });
 
 require(
-        [ "require", "jquery", "angularjs", "vox"],
-        function (require, jquery, angularjs, vox) {
+        [ "require", "jquery", "angularjs", "jstree", "vox"],
+        function (require, jquery, angularjs, jstree, vox) {
             jQuery(document)
                     .ready(
                     function () {
@@ -107,12 +109,7 @@ function VoxDemo() {
     };
 
     VoxDemo.prototype.parseGrammar = function () {
-        console.log("grammarString");
-        console.log(this.grammarString);
-
         this.grammar = JSON.parse(this.grammarString);
-
-        console.log(this.grammar);
     };
 
     VoxDemo.prototype.initialize = function () {
@@ -195,8 +192,6 @@ function VoxDemo() {
             ESCAPE: {label: "Escape", isKeyword: true},
             TEXT: {label: "Arbitrary Text", isKeyword: false}};
 
-        var self = this;
-
         this.grammar = {MessageSequence: [
             [
                 ["Message", function (node) {
@@ -241,13 +236,25 @@ function VoxDemo() {
         this.grammarString = JSON.stringify(this.grammar, null, "   ");
         this.parser = new vox.VoiceParser();
 
+        var self = this;
+
         this.parser.initialize(tokens, this.grammar, "MessageSequence", function () {
             self.voiceRecognitionStart();
+        }, function () {
+            self.voiceRecognitionConsume();
         }, function () {
             self.voiceRecognitionError();
         }, function () {
             self.voiceRecognitionEnd();
         });
+
+        jQuery("#syntaxTree").jstree({ core: {theme: {
+            "variant": "small"
+        },
+            data: [
+                {text: "No content."}
+            ]
+        } });
     };
 
     /**
@@ -257,6 +264,15 @@ function VoxDemo() {
         this.recognizing = true;
 
         this.safeApply();
+        this.updateSyntaxTree();
+    };
+
+    /**
+     *
+     */
+    VoxDemo.prototype.voiceRecognitionConsume = function () {
+        this.safeApply();
+        this.updateSyntaxTree();
     };
 
     /**
@@ -293,6 +309,45 @@ function VoxDemo() {
      */
     VoxDemo.prototype.startRecognition = function () {
         this.parser.startRecognition();
+    };
+
+    /**
+     *
+     */
+    VoxDemo.prototype.updateSyntaxTree = function () {
+        console.log("Update syntax tree");
+        console.log(this.parser.rootSyntaxNode);
+
+        jQuery("#syntaxTree").jstree("destroy");
+        jQuery("#syntaxTree").jstree({ core: {theme: {
+            "variant": "small"
+        },
+            data: [this.populateSyntaxTree(this.parser.rootSyntaxNode)
+
+            ]
+        } });
+    };
+
+    VoxDemo.prototype.populateSyntaxTree = function (syntaxNode) {
+        var treeNode = {state: {
+            opened: true
+        }};
+
+        if (syntaxNode.production) {
+            treeNode.text = "" + syntaxNode.production + " (" + (syntaxNode.resolved ? "resolved" : "open") + ")";
+            treeNode.icon = "css/images/production.png";
+            treeNode.children = [];
+
+            for (var n = 0; n < syntaxNode.children.length; ++n) {
+                treeNode.children.push(this.populateSyntaxTree(syntaxNode.children[n]));
+            }
+        }
+        else {
+            treeNode.text = "" + (syntaxNode.token == "TEXT" ? (syntaxNode.text ? "\"" + syntaxNode.text + "\"" : "\"\"") : syntaxNode.token) + " (" + (syntaxNode.resolved ? "resolved" : "open") + ")";
+            treeNode.icon = "css/images/token.png";
+        }
+
+        return treeNode;
     };
 }
 
@@ -344,9 +399,10 @@ function inheritMethods(target, source) {
                 </tr>
             </table>
         </td>
-        <td>
+        <td style="padding-left: 20px;">
             <h2>RECORDING</h2>
             <input type="button" value="Start" ng-click="startRecognition()" ng-hide="recognizing"/>
+
             <div ng-show="recognizing">
                 <p>Say one of the following</p>
                 <ul>
@@ -359,9 +415,7 @@ function inheritMethods(target, source) {
 
             <h2>RESULT</h2>
 
-            <p>
-                {{parser.stringifiedSyntaxTree}}
-            </p>
+            <div id="syntaxTree" style="width: 400px; height: 500px; border: 1px solid grey; overflow: scroll"></div>
         </td>
     </tr>
 </table>
