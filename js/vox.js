@@ -4,8 +4,7 @@
 
 // Initialize module
 
-if (!vox)
-{
+if (!vox) {
     var vox = {VoiceParser: VoiceParser};
 }
 
@@ -14,6 +13,15 @@ if (!vox)
  * @constructor
  */
 function VoiceParser() {
+    /**
+     *
+     * @param tokens
+     * @param productions
+     * @param startProduction
+     * @param start
+     * @param error
+     * @param end
+     */
     VoiceParser.prototype.initialize = function (tokens, productions, startProduction, start, error, end) {
         this.objects = [];
         this.links = [];
@@ -30,6 +38,9 @@ function VoiceParser() {
         this.initializeVoiceRecognition();
     };
 
+    /**
+     *
+     */
     VoiceParser.prototype.checkGrammar = function () {
         var traverse = {};
 
@@ -55,63 +66,6 @@ function VoiceParser() {
                 continue;
             } else {
                 throw "Incomplete Grammar: " + this.grammar[production][0][n][0] + " undefined.";
-            }
-        }
-    };
-
-    /**
-     *
-     * @returns {Array}
-     */
-    VoiceParser.prototype.getNextExpectedTokens = function () {
-        var expectedTokens = [];
-        var traverse = {};
-
-        if (this.speechNode) {
-            this.getNextExpectedTokenForProduction(this.speechNode.production, expectedTokens, traverse);
-        }
-
-        return expectedTokens;
-    };
-
-    /**
-     * For (debugging) display.
-     */
-    VoiceParser.prototype.getActiveProductionsStack = function () {
-        var speechNode = this.speechNode;
-        var productions = [];
-
-        while (speechNode)
-        {
-            productions.push(speechNode.production);
-
-            speechNode = speechNode.parent;
-        }
-
-        return productions;
-    };
-
-    /**
-     *
-     * @param production
-     * @param expectedTokens
-     */
-    VoiceParser.prototype.getNextExpectedTokenForProduction = function (production, expectedTokens, traverse) {
-        if (traverse[production]) {
-            return;
-        }
-
-        traverse[production] = production;
-
-        for (var n = 0; n < this.grammar[production][0].length; ++n) {
-            if (this.grammar[this.grammar[production][0][n][0]]) {
-                this.getNextExpectedTokenForProduction(this.grammar[production][0][n][0], expectedTokens, traverse);
-            }
-            else if (this.tokens[this.grammar[production][0][n][0]]) {
-                expectedTokens.push(this.tokens[this.grammar[production][0][n][0]]);
-            }
-            else {
-                throw "Incomplete Grammar: " + this.grammar[production][0][n][0] + " undefined. Grammar not checked?";
             }
         }
     };
@@ -158,41 +112,88 @@ function VoiceParser() {
                     console.log(self.tokens[finalToken]);
                     console.log(self.tokens);
 
-                    if (self.tokens[finalToken]) {
-                        if (self.finalTranscript.length > 0) {
-                            self.processText(self.finalTranscript);
+                    if (self.tokens[finalToken])
+                    {
+                        var matchingTokenNode = null;
+                        var textTokenNode = null;
+
+                        for (var n = 0; self.unresolvedTokenNodes.length; ++n)
+                        {
+                            if (self.unresolvedTokenNodes[n].token == "TEXT")
+                            {
+                                textTokenNode = self.unresolvedTokenNodes[n];
+                            }
+                            else if (self.unresolvedTokenNodes[n].token == finalToken)
+                            {
+                                matchingTokenNode = self.unresolvedTokenNodes[n];
+
+                                break;
+                            }
                         }
 
-                        self.processToken(finalToken.toUpperCase());
+                        if (!matchingTokenNode)
+                        {
+                            if (textTokenNode)
+                            {
+                                // New token may have completed text input
 
-                        self.finalTranscript = "";
+                                self.finalTranscript += event.results[i][0].transcript;
 
-                        self.nextTokenHint();
+                                if (self.finalTranscript.length > 0) {
+                                    self.processText(self.finalTranscript);
+
+                                    self.finalTranscript = "";
+                                }
+
+                                self.processToken(finalToken);
+                            }
+                            else {
+                                throw new SyntaxError("Unexpected token " + finalToken);
+                            }
+                        }
+                        else if (self.finalTranscript.length == 0) // No other text parsed before
+                        {
+                            self.processToken(finalToken);
+
+
+                            self.nextTokenHint();
+                        }
+                        else
+                        {
+                            throw new SyntaxError("Token " + finalToken + "interferes with text " + self.finalTranscript);
+                        }
                     }
-                    else {
-                        self.finalTranscript += event.results[i][0].transcript;
+                    else
+                    {
+                        // Check whether parsing text is expected
+
+                        var textTokenNode = null;
+
+                        for (var n = 0; self.unresolvedTokenNodes.length; ++n)
+                        {
+                            if (self.unresolvedTokenNodes[n].token == "TEXT")
+                            {
+                                textTokenNode = self.unresolvedTokenNodes[n];
+
+                                break;
+                            }
+                        }
+
+                        if (textTokenNode) {
+                            // Parsing free text; just append
+
+                            self.finalTranscript += event.results[i][0].transcript;
+                        }
+                        else
+                        {
+                            throw new SyntaxError("Unexpected input " + event.results[i][0].transcript);
+                        }
                     }
                 } else {
                     interim_transcript += event.results[i][0].transcript;
                 }
             }
         };
-    };
-
-    /**
-     *
-     */
-    VoiceParser.prototype.nextTokenHint = function () {
-        return;
-
-        this.synthesis.speak(new SpeechSynthesisUtterance("Say one of the following "));
-
-        var nextTokens = this.getNextExpectedTokens();
-
-        for (var n = 0; n < nextTokens.length; ++n) {
-            this.synthesis.speak(new SpeechSynthesisUtterance(nextTokens[0].label));
-        }
-
     };
 
     /**
@@ -210,9 +211,17 @@ function VoiceParser() {
 
         this.recognition.start();
 
-        this.speechNode = null;
+        this.currentSpeechNode = null;
+        this.rootSyntaxNode = null;
 
-        this.pushProduction(this.startProduction);
+        this.pushProduction(this.rootSyntaxNode, this.startProduction, 0, 0);
+
+        console.log(this.rootSyntaxNode);
+
+        this.getUnresolvedTokenNodes();
+
+        console.log(this.unresolvedTokenNodes);
+
         this.nextTokenHint();
     };
 
@@ -220,56 +229,131 @@ function VoiceParser() {
      *
      * @param transcript
      */
-    VoiceParser.prototype.pushProduction = function (production) {
+    VoiceParser.prototype.pushProduction = function (parentSyntaxNode, production, orIndex, andIndex) {
         console.log("Push production " + production);
 
-        if (this.speechNode == null) {
-            this.speechNode = {production: production, children: []};
-            this.speech = this.speechNode;
+        var newSyntaxNode = null;
+
+        if (parentSyntaxNode == null) {
+            newSyntaxNode = {production: production, orIndex: orIndex, andIndex: andIndex, children: [], resolved: false};
+
+            this.rootSyntaxNode = newSyntaxNode;
         }
         else {
-            var newSpeechNode = {production: production, children: [], parent: this.speechNode};
+            newSyntaxNode = {production: production, orIndex: orIndex, andIndex: andIndex, children: [], parent: parentSyntaxNode, resolved: false};
 
-            this.speechNode.children.push(newSpeechNode);
-
-            this.speechNode = newSpeechNode;
+            parentSyntaxNode.children.push(newSyntaxNode);
         }
 
-        if (this.grammar[this.grammar[production][0][0][0]]) {
-            this.pushProduction(this.grammar[production][0][0][0]);
+        // Traverse grammar for all OR terms
+
+        for (var n = 0; n < this.grammar[production].length; ++n) {
+            if (this.grammar[this.grammar[production][n][0][0]]) {
+                this.pushProduction(newSyntaxNode, this.grammar[production][n][0][0], n, 0);
+            }
+            else if (this.tokens[this.grammar[production][n][0][0]]) {
+                this.pushToken(newSyntaxNode, this.grammar[production][n][0][0], n, 0);
+            }
+        }
+    };
+
+    /**
+     *
+     * @param transcript
+     */
+    VoiceParser.prototype.pushToken = function (parentSyntaxNode, token, orIndex, andIndex) {
+        var newSyntaxNode = {token: token, orIndex: orIndex, andIndex: andIndex, parent: parentSyntaxNode, resolved: false};
+
+        parentSyntaxNode.children.push(newSyntaxNode);
+    };
+
+    /**
+     *
+     * @returns {Array}
+     */
+    VoiceParser.prototype.getUnresolvedTokenNodes = function () {
+        this.unresolvedTokenNodes = [];
+
+        if (this.rootSyntaxNode) {
+            this.getUnresolvedTokenNodesForProductionNode(this.rootSyntaxNode);
+        }
+
+        return this.unresolvedTokenNodes;
+    };
+
+    /**
+     * Depth-first traversal of possible productions and expected next tokens.
+     *
+     * @param syntaxNode
+     */
+    VoiceParser.prototype.getUnresolvedTokenNodesForProductionNode = function (syntaxNode) {
+        if (syntaxNode.resolved) {
+            return;
+        }
+
+        // Iterate over OR terms
+
+        for (var i = 0; i < syntaxNode.children.length; ++i) {
+            if (syntaxNode.children[i].production) {
+                // If term is a production, traverse
+
+                this.getUnresolvedTokenNodesForProductionNode(syntaxNode.children[i]);
+            }
+            else if (syntaxNode.children[i].token) {
+                // If term is token, add to expected tokens
+
+                this.unresolvedTokenNodes.push(syntaxNode.children[i]);
+            }
         }
     };
 
     /**
      *
      */
-    VoiceParser.prototype.popProduction = function () {
-        var lastProduction = this.speechNode.production;
-        this.speechNode = this.speechNode.parent;
+    VoiceParser.prototype.nextTokenHint = function () {
+        return;
 
-        console.log("Speech Node");
-        console.log(this.speechNode);
+        this.synthesis.speak(new SpeechSynthesisUtterance("Say one of the following "));
 
-        console.log(this.productions);
+        var nextTokens = this.getNextExpectedTokens();
 
-        // Find popped production
+        for (var n = 0; n < nextTokens.length; ++n) {
+            this.synthesis.speak(new SpeechSynthesisUtterance(nextTokens[0].label));
+        }
+    };
 
-        var currentProduction = this.grammar[this.speechNode.production][0]; // TODO Alternatives
+    /**
+     *
+     */
+    VoiceParser.prototype.resolveSyntaxBranch = function (syntaxNode) {
+        // TODO Rewrite
 
-        console.log(currentProduction);
+        // Find the first resolved node or
 
-        for (var n = 0; n < currentProduction.length; ++n) {
-            if (currentProduction[n] == lastProduction) {
-                // Process next production
+        var lastSyntaxNode = null;
 
-                if (n < currentProduction.length - 1) {
-                    this.pushProduction(currentProduction[n + 1]);
-                } else {
-                    // Current production completed
+        do
+        {
+            syntaxNode.resolved = true;
+            lastSyntaxNode = syntaxNode;
+            syntaxNode = syntaxNode.parent;
+        }
+        while (syntaxNode.parent && !syntaxNode.resolved);
 
-                    this.popProduction();
-                }
-            }
+        console.log("Resolved node");
+        console.log(syntaxNode);
+
+        // Delete all unresolved branches
+
+        syntaxNode.children = [lastSyntaxNode];
+
+        // Find next term in syntax node
+
+        var production = this.grammar[syntaxNode.production];
+
+        if (lastSyntaxNode.andIndex < production[lastSyntaxNode.orIndex].length - 1)
+        {
+            this.pushProduction(syntaxNode, production[lastSyntaxNode.orIndex][lastSyntaxNode.andIndex + 1], lastSyntaxNode.andIndex + 1)
         }
     };
 
@@ -280,21 +364,20 @@ function VoiceParser() {
     VoiceParser.prototype.processText = function (text) {
         console.log("Process text: " + text);
 
-        var production = this.grammar[this.speechNode.production];
+        for (var n = 0; n < this.unresolvedTokenNodes.length; ++n)
+        {
+            var tokenNode = this.unresolvedTokenNodes[n];
 
-        for (var n = 0; n < production[0].length; ++n) {
-            if (production[0][n][0] == "TEXT") {
-                this.speechNode.token = text;
+            if (this.tokenNode.token == "TEXT")
+            {
+                var parentProduction = this.grammar[tokenNode.parent.production];
+                var action = parentProduction[tokenNode.orIndex][tokenNode.andIndex][1];
 
-                var action = production[0][n][1];
-
-                this.popProduction();
+                this.resolveSyntaxBranch(tokenNode);
 
                 if (action) {
-                    action(this.speechNode);
+                    action(this.tokenNode);
                 }
-
-                break;
             }
         }
     };
@@ -306,24 +389,23 @@ function VoiceParser() {
     VoiceParser.prototype.processToken = function (token) {
         console.log("Process token: " + token);
 
-        var production = this.grammar[this.speechNode.production];
+        for (var n = 0; n < this.unresolvedTokenNodes.length; ++n)
+        {
+            var tokenNode = this.unresolvedTokenNodes[n];
 
-        for (var n = 0; n < production[0].length; ++n) {
-            if (production[0][n][0] == token) {
-                if (production[0][n][1]) {
-                    this.speechNode.token = token;
+            if (tokenNode.token == token)
+            {
+                var parentProduction = this.grammar[tokenNode.parent.production];
+                var action = parentProduction[tokenNode.orIndex][tokenNode.andIndex][1];
 
-                    var action = production[0][n][1];
+                this.resolveSyntaxBranch(tokenNode);
 
-                    this.popProduction();
-
-                    if (action) {
-                        action(this.speechNode);
-                    }
-
-                    break;
+                if (action) {
+                    action(this.tokenNode);
                 }
+
+                break;
             }
         }
-    };
+   };
 }

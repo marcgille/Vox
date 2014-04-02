@@ -17,20 +17,32 @@
 <style>
     body {
         font-family: "Arial";
+        font-size: 11px;
     }
 
     h1 {
         width: 100%;
         font-weight: normal;
-        border-bottom: 1px solid darkblue;
+        font-size: 20px;
+        color: darkmagenta;
+        border-bottom: 1px solid darkmagenta;
     }
 
     h2 {
         font-weight: normal;
+        font-size: 14px;
+        color: darkgrey;
     }
 
     h3 {
         font-weight: normal;
+        font-size: 12px;
+        color: darkslategray;
+    }
+
+    textarea {
+        font-family: "Courier";
+        font-weight: bold;
     }
 </style>
 <script>
@@ -92,6 +104,15 @@ function VoxDemo() {
         } else {
             this.$apply(fn);
         }
+    };
+
+    VoxDemo.prototype.parseGrammar = function () {
+        console.log("grammarString");
+        console.log(this.grammarString);
+
+        this.grammar = JSON.parse(this.grammarString);
+
+        console.log(this.grammar);
     };
 
     VoxDemo.prototype.initialize = function () {
@@ -165,6 +186,8 @@ function VoxDemo() {
                     ['Lingua latīna', ['la']]
                 ];
 
+        this.language = this.languages[6];
+
         var tokens = {MAIL: {label: "Mail", isKeyword: true},
             TWITTER: {label: "Twitter", isKeyword: true},
             FACEBOOK: {label: "Facebook", isKeyword: true},
@@ -173,7 +196,8 @@ function VoxDemo() {
             TEXT: {label: "Arbitrary Text", isKeyword: false}};
 
         var self = this;
-        var productions = {MessageSequence: [
+
+        this.grammar = {MessageSequence: [
             [
                 ["Message", function (node) {
                     console.log(node);
@@ -214,9 +238,10 @@ function VoxDemo() {
                 ]
             ]};
 
+        this.grammarString = JSON.stringify(this.grammar, null, "   ");
         this.parser = new vox.VoiceParser();
 
-        this.parser.initialize(tokens, productions, "MessageSequence", function () {
+        this.parser.initialize(tokens, this.grammar, "MessageSequence", function () {
             self.voiceRecognitionStart();
         }, function () {
             self.voiceRecognitionError();
@@ -289,48 +314,56 @@ function inheritMethods(target, source) {
 </h1>
 
 <div ng-show="message != null">{{message}}</div>
-<h2>Settings</h2>
 <table>
-    <tr>
-        <td><label>Language</label>
+    <tr valign="top">
         <td>
-            <select ng-model="language" ng-options="language as language[0] for language in languages"></select>
-            <select ng-model="dialect" ng-options="dialect as dialect[1] for dialect in language[1]"></select></td>
-    </tr>
-    <tr>
-        <td><label>Voice hints for next Token</label></td>
-        <td><input type="checkbox"/></td>
+            <h2>SETTINGS</h2>
+            <table>
+                <tr>
+                    <td><label>Language</label>
+                    <td>
+                        <select ng-model="language"
+                                ng-options="language as language[0] for language in languages"></select>
+                        <select ng-model="dialect"
+                                ng-options="dialect as dialect[1] for dialect in language[1]"></select></td>
+                </tr>
+                <tr>
+                    <td><label>Voice hints for next Token</label></td>
+                    <td><input type="checkbox"/></td>
+                </tr>
+                <tr>
+                    <td><label>Debug Output</label></td>
+                    <td><input type="checkbox"/></td>
+                </tr>
+            </table>
+            <h2>GRAMMAR</h2>
+            <table>
+                <tr>
+                    <td><textarea cols="50" rows="30" ng-model="grammarString" ng-change="parseGrammar()"></textarea>
+                    </td>
+                </tr>
+            </table>
+        </td>
+        <td>
+            <h2>RECORDING</h2>
+            <input type="button" value="Start" ng-click="startRecognition()" ng-hide="recognizing"/>
+            <div ng-show="recognizing">
+                <p>Say one of the following</p>
+                <ul>
+                    <li ng-repeat="tokenNode in parser.unresolvedTokenNodes"><span
+                            ng-show="parser.tokens[tokenNode.token].isKeyword"><strong>{{parser.tokens[tokenNode.token].label}}</strong></span><span
+                            ng-hide="parser.tokens[tokenNode.token].isKeyword"><i>{{parser.tokens[tokenNode.token].label}}</i></span>
+                    </li>
+                </ul>
+            </div>
+
+            <h2>RESULT</h2>
+
+            <p>
+                {{parser.stringifiedSyntaxTree}}
+            </p>
+        </td>
     </tr>
 </table>
-<h2>Grammar</h2>
-<table>
-    <tr>
-        <td><textarea cols="50" rows="30"></textarea></td>
-    </tr>
-</table>
-<h2>Recording</h2>
-<input type="button" value="Start" ng-click="startRecognition()" ng-hide="recognizing"/>
-
-<div ng-show="recognizing">
-    <p>Current Productions</p>
-    <ul>
-        <li ng-repeat="production in parser.getActiveProductionsStack()">{{production}}</span>
-        </li>
-    </ul>
-</div>
-<div ng-show="recognizing">
-    <p>Say one of the following</p>
-    <ul>
-        <li ng-repeat="token in parser.getNextExpectedTokens()"><span
-                ng-show="token.isKeyword"><strong>{{token.label}}</strong></span><span ng-hide="token.isKeyword"><i>{{token.label}}</i></span>
-        </li>
-    </ul>
-</div>
-
-<h2>Result</h2>
-
-<p>
-    {{parser.speech}}
-</p>
 </body>
 </html>
