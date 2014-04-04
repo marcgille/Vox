@@ -1,6 +1,7 @@
 <!DOCTYPE html ng-app>
 <html>
 <head>
+<link href='http://fonts.googleapis.com/css?family=Lato:400,700,300italic,400italic' rel='stylesheet' type='text/css'>
 <script>
     (function (e, p) {
         var m = location.href.match(/platform=(win8|win|mac|linux|cros)/);
@@ -17,14 +18,17 @@
 <link rel="stylesheet" href="js/libs/jstree/themes/default/style.min.css"/>
 <style>
     body {
-        font-family: "Arial";
-        font-size: 11px;
+        font-family: 'Lato', sans-serif;
+    }
+
+    p, li, label {
+        font-size: 12px;
     }
 
     h1 {
         width: 100%;
         font-weight: normal;
-        font-size: 20px;
+        font-size: 24px;
         color: darkmagenta;
         border-bottom: 1px solid darkmagenta;
     }
@@ -384,10 +388,6 @@ function inheritMethods(target, source) {
                 </tr>
                 <tr>
                     <td><label>Voice hints for next Token</label></td>
-                    <td><input type="checkbox"/></td>
-                </tr>
-                <tr>
-                    <td><label>Debug Output</label></td>
                     <td><input type="checkbox"/></td>
                 </tr>
             </table>
