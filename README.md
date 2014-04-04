@@ -1,4 +1,4 @@
 Vox
 ===
 
-Toolset for WebSpeech API (e.g. a good old parser generator)
+A "good old" parser generator for speech recognition. 
