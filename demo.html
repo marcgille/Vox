@@ -21,8 +21,12 @@
         font-family: 'Lato', sans-serif;
     }
 
-    p, li, label {
+    p, a, li, label {
         font-size: 12px;
+    }
+
+    a {
+        color: #481168;
     }
 
     h1 {
@@ -48,6 +52,18 @@
     textarea {
         font-family: "Courier";
         font-weight: bold;
+    }
+
+    .message {
+        font-family: 'Lato', sans-serif;
+        font-size: 12px;
+        background: #FBEFF6;
+        border-color: #FBEFF6;
+        padding: 8px 15px;
+        border-radius: 3px;
+        margin: 0 0 0px;
+        border: 1px solid #ccc;
+        position: relative;
     }
 </style>
 <script>
@@ -90,6 +106,17 @@ require(
 
                                     $scope.initialize();
                                 });
+
+                        module.directive('ngBlur', ['$parse', function ($parse) {
+                            return function (scope, element, attr) {
+                                var fn = $parse(attr['ngBlur']);
+                                element.bind('blur', function (event) {
+                                    scope.$apply(function () {
+                                        fn(scope, {$event: event});
+                                    });
+                                });
+                            }
+                        }]);
 
                         angular
                                 .bootstrap(
@@ -196,48 +223,8 @@ function VoxDemo() {
             ESCAPE: {label: "Escape", isKeyword: true},
             TEXT: {label: "Arbitrary Text", isKeyword: false}};
 
-        this.grammar = {MessageSequence: [
-            [
-                ["Message", function (node) {
-                    console.log(node);
-                    self.safeApply();
-                }],
-                ["MessageSequence"]
-            ]
-        ],
-            Message: [
-                [
-                    ["MessageType"],
-                    ["MessageContent"]
-                ]
-            ],
-            MessageType: [
-                [
-                    ["MAIL", function (node) {
-                        console.log(node);
-                        self.safeApply();
-                    }]
-                ],
-                [
-                    ["TWITTER", function (node) {
-                        console.log(node);
-                        self.safeApply();
-                    }]
-                ],
-                [
-                    ["FACEBOOK", function (node) {
-                        console.log(node);
-                        self.safeApply();
-                    }]
-                ]
-            ],
-            MessageContent: [
-                [
-                    ["TEXT"]
-                ]
-            ]};
+        this.useSampleGrammar();
 
-        this.grammarString = JSON.stringify(this.grammar, null, "   ");
         this.parser = new vox.VoiceParser();
 
         var self = this;
@@ -319,9 +306,6 @@ function VoxDemo() {
      *
      */
     VoxDemo.prototype.updateSyntaxTree = function () {
-        console.log("Update syntax tree");
-        console.log(this.parser.rootSyntaxNode);
-
         jQuery("#syntaxTree").jstree("destroy");
         jQuery("#syntaxTree").jstree({ core: {theme: {
             "variant": "small"
@@ -332,13 +316,67 @@ function VoxDemo() {
         } });
     };
 
+    /**
+     *
+     */
+    VoxDemo.prototype.applyGrammar = function () {
+        try {
+            this.grammar = eval("(" + this.grammarString + ")");
+        }
+        catch (x) {
+            console.log(x);
+
+            this.message = "Cannot parse grammar: \n" + x;
+        }
+    };
+
+    /**
+     *
+     */
+    VoxDemo.prototype.useSampleGrammar = function () {
+        this.grammarString = "{MessageSequence: [\n" +
+                "   [\n" +
+                "      ['Message', function (node) {\n" +
+                "                     alert('Parsed Message: ' + node);\n" +
+                "                    }],\n" +
+                "      ['MessageSequence']\n" +
+                "   ]\n" +
+                "],\n" +
+                "Message: [\n" +
+                "   [\n" +
+                "      ['MessageType'],\n" +
+                "      ['MessageContent']\n" +
+                "   ]\n" +
+                "],\n" +
+                "MessageType: [\n" +
+                "   [\n" +
+                "      ['MAIL', function (node) {\n" +
+                "                }]\n" +
+                "   ],\n" +
+                "   [\n" +
+                "      ['TWITTER', function (node) {\n" +
+                "                }]\n" +
+                "   ],\n" +
+                "   [\n" +
+                "      ['FACEBOOK', function (node) {\n" +
+                "                }]\n" +
+                "   ]\n" +
+                "],\n" +
+                "MessageContent: [\n" +
+                "   [\n" +
+                "      ['TEXT']\n" +
+                "   ]\n" +
+                "]}";
+        this.applyGrammar();
+    };
+
     VoxDemo.prototype.populateSyntaxTree = function (syntaxNode) {
         var treeNode = {state: {
             opened: true
         }};
 
         if (syntaxNode.production) {
-            treeNode.text = "" + syntaxNode.production + " (" + (syntaxNode.resolved ? "resolved" : "open") + ")";
+            treeNode.text = "\n" + syntaxNode.production + " (\n" + (syntaxNode.resolved ? "resolved" : "open") + ")";
             treeNode.icon = "css/images/production.png";
             treeNode.children = [];
 
@@ -347,7 +385,7 @@ function VoxDemo() {
             }
         }
         else {
-            treeNode.text = "" + (syntaxNode.token == "TEXT" ? (syntaxNode.text ? "\"" + syntaxNode.text + "\"" : "\"\"") : syntaxNode.token) + " (" + (syntaxNode.resolved ? "resolved" : "open") + ")";
+            treeNode.text = "\n" + (syntaxNode.token == "TEXT" ? (syntaxNode.text ? "\"\n" + syntaxNode.text + "\"" : "\"\"") : syntaxNode.token) + " (\n" + (syntaxNode.resolved ? "resolved" : "open") + ")";
             treeNode.icon = "css/images/token.png";
         }
 
@@ -372,7 +410,7 @@ function inheritMethods(target, source) {
 <h1>Vox Demo
 </h1>
 
-<div ng-show="message != null">{{message}}</div>
+<div class="message" ng-show="message != null" style="margin-bottom: 10px;">{{message}}</div>
 <table>
     <tr valign="top">
         <td>
@@ -392,9 +430,10 @@ function inheritMethods(target, source) {
                 </tr>
             </table>
             <h2>GRAMMAR</h2>
+            <a href="#" ng-click="useSampleGrammar()">Use Sample Grammar &raquo;</a>
             <table>
                 <tr>
-                    <td><textarea cols="50" rows="30" ng-model="grammarString" ng-change="parseGrammar()"></textarea>
+                    <td><textarea cols="50" rows="30" ng-model="grammarString" ng-blur="applyGrammar()"></textarea>
                     </td>
                 </tr>
             </table>
